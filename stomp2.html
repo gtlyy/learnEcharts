@@ -1,0 +1,71 @@
+<html>
+	<head>
+		<title>WebSocket</title>
+			<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	</head>	
+	
+	<body>
+		<div id="main">
+			<div id="message"></div>
+		</div>
+		
+	<input type="text" id="displayBox" name="displayBox" value="0">
+	<input type="text" id="displayBox2" name="displayBox2" value="2">
+	<br><br>
+	<form><input id="messageInput" autocomplete="off" value="Type here..."></input></form>
+	</body>
+	
+	<script src="js/stomp.js"></script>
+	<script src="js/jquery-3.6.0.js"></script>
+	
+
+</script>	
+	
+	<script type="text/javascript">
+		var ws = new WebSocket('ws://127.0.0.1:15674/ws');
+		var client = Stomp.over(ws);
+		
+		// 监听输入框，并实现输入框的发送功能
+  		const inputElement = document.getElementById("messageInput");
+  		inputElement.addEventListener("keydown", function (event) {
+    		if (event.key === "Enter") {
+     			event.preventDefault(); // 阻止表单提交
+      		sendMessage('/topic/test', inputElement.value);
+      		inputElement.value = ""; // 清空输入框
+    		}
+  		});
+		
+		// 发送信息
+		function sendMessage(topic, msg) {
+    		 client.send(topic, {"content-type":"text/plain"}, msg);
+  		}
+		
+		// 连接函数
+		var on_connect = function(x) {
+    		console.log('connected');
+    		
+    		// 订阅echo频道
+    		client.subscribe("/topic/echo", function (data) {
+    			var msg = data.body;
+    			//$("#message").append("收到数据：" + msg);
+    			//console.log(msg)
+    			document.getElementById("displayBox").value=msg
+    		});
+    		
+    		// 订阅test频道
+    		client.subscribe("/topic/test", function (data) {
+    			var msg = data.body;
+    			document.getElementById("displayBox2").value=msg
+    		});
+		};
+		
+		// 错误处理函数
+		var on_error =  function() {
+    		console.log('error');
+		};
+		
+		// connect to rabbitmq server.
+		client.connect('userdw01', 'pq328hu7', on_connect, on_error, '/');
+	</script>
+	
+</html>

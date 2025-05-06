@@ -1,0 +1,448 @@
+<!--
+	THIS EXAMPLE WAS DOWNLOADED FROM https://echarts.apache.org/examples/zh/editor.html?c=candlestick-brush
+-->
+<!DOCTYPE html>
+<html lang="zh-CN" style="height: 100%">
+<head>
+  <meta charset="utf-8">
+</head>
+<body style="height: 100%; margin: 0">
+  <div id="container" style="width:90%;height: 90%"></div>
+  <div id="gotext" style="width: 10%;height:10%;">gotext</div>
+
+  <script type="text/javascript" src="js/echarts-5.3.0.js"></script>
+  <script src="js/stomp.js"></script>
+  <script src="js/jquery-3.6.0.js"></script>
+
+  <script type="text/javascript">
+    var dom = document.getElementById('container');
+    var myChart = echarts.init(dom, null, {
+      renderer: 'canvas',
+      useDirtyRect: false
+    });
+    var app = {};
+    var ROOT_PATH = 'https://cdn.jsdelivr.net/gh/apache/echarts-website@asf-site/examples';
+    var option;
+
+    const upColor = '#00da3c';
+    const downColor = '#ec0000';
+
+// 得出x轴、y轴数据
+// rawDate格式[[date, open, close, low, high, vol],[......]]
+function splitData(rawData) {
+  // console.log(rawData);
+  let categoryData = [];
+  let values = [];
+  let volumes = [];
+  for (let i = 0; i < rawData.length; i++) {
+    categoryData.push(rawData[i].splice(0, 1)[0]);    // splice(x,n) 从x开始，删除n个数，返回删除元素数组
+    values.push(rawData[i]);                          // 已经删除了n个元素
+    volumes.push([i, rawData[i][4], rawData[i][0] > rawData[i][1] ? 1 : -1]);   // 升降不同颜色 
+    // console.log(categoryData);
+  }
+  return {
+    categoryData: categoryData,
+    values: values,
+    volumes: volumes
+  };
+}
+
+// 得出均线数据
+function calculateMA(dayCount, data) {
+  var result = [];
+  for (var i = 0, len = data.values.length; i < len; i++) {
+    if (i < dayCount) {
+      result.push('-');
+      continue;
+    }
+    var sum = 0;
+    for (var j = 0; j < dayCount; j++) {
+      sum += data.values[i - j][1];
+    }
+    result.push(+(sum / dayCount).toFixed(3));
+  }
+  return result;
+}
+
+option = {
+      //  加载动画，不需要
+      animation: false,
+      // 图例
+      legend: {
+        bottom: 10,
+        left: 'center',
+        data: ['Dow-Jones index', 'MA5', 'MA10', 'MA20', 'MA30']
+      },
+      // 工具提示
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'cross'
+        },
+        borderWidth: 1,
+        borderColor: '#ccc',
+        padding: 10,
+        textStyle: {
+          color: '#000'
+        },
+        position: function (pos, params, el, elRect, size) {
+          const obj = {
+            top: 10
+          };
+          obj[['left', 'right'][+(pos[0] < size.viewSize[0] / 2)]] = 30;
+          return obj;
+        }
+        // extraCssText: 'width: 170px'
+      },
+      // 这是坐标轴指示器（axisPointer）的全局公用设置
+      axisPointer: {
+        link: [
+          {
+            xAxisIndex: 'all'
+          }
+        ],
+        label: {
+          backgroundColor: '#777'
+        }
+      },
+      // 工具栏，不需要
+      // toolbox: {
+      //   feature: {
+      //     dataZoom: {
+      //       yAxisIndex: false
+      //     },
+      //     brush: {
+      //       type: ['lineX', 'clear']
+      //     }
+      //   }
+      // },
+      // 区域选择组件，不需要
+      // brush: {
+      //   xAxisIndex: 'all',
+      //   brushLink: 'all',
+      //   outOfBrush: {
+      //     colorAlpha: 0.1
+      //   }
+      // },
+      // 视觉映射组件
+      visualMap: {
+        seriesIndex: 5,     // vol
+        type: 'piecewise',
+        dimension: 2,
+        pieces: [
+          { value: -1, color: upColor},
+          { value: 1, color: downColor},
+        ]
+      },
+      grid: [
+        {
+          left: '10%',
+          right: '8%',
+          height: '50%'
+        },
+        {
+          left: '10%',
+          right: '8%',
+          top: '63%',
+          height: '16%'
+        }
+      ],
+      xAxis: [
+        {
+          type: 'category',
+          gridIndex: 0,
+          // data: data.categoryData,
+          data: [],
+          boundaryGap: false,
+          axisLine: { onZero: false },
+          splitLine: { show: false },
+          min: 'dataMin',
+          max: 'dataMax',
+          axisPointer: {
+            z: 100
+          }
+        },
+        {
+          type: 'category',
+          gridIndex: 1,
+          // data: data.categoryData,
+          data: [],
+          boundaryGap: false,
+          axisLine: { onZero: false },
+          axisTick: { show: true },
+          splitLine: { show: false },
+          axisLabel: { show: true },
+          min: 'dataMin',
+          max: 'dataMax'
+        }
+      ],
+      yAxis: [
+        {
+          scale: true,
+          gridIndex: 0,
+          splitArea: {
+            show: true
+          }
+        },
+        {
+          scale: true,
+          gridIndex: 1,
+          splitNumber: 2,
+          axisLabel: { show: false },
+          axisLine: { show: false },
+          axisTick: { show: false },
+          splitLine: { show: false }
+        }
+      ],
+      dataZoom: [
+        {
+          type: 'inside',
+          xAxisIndex: [0, 1],
+          start: 60,
+          end: 100
+        },
+        {
+          type: 'slider',
+          show: true,
+          xAxisIndex: [0, 1],
+          // top: '85%',
+          start: 60,
+          end: 100
+        }
+      ],
+      series: [
+        {
+          name: 'Dow-Jones index',
+          type: 'candlestick',
+          // data: data.values,
+          data: [],
+          itemStyle: {
+            color: upColor,
+            color0: downColor,
+            borderColor: undefined,
+            borderColor0: undefined
+          },
+          tooltip: {
+            formatter: function (param) {
+              param = param[0];
+              return [
+                'Date: ' + param.name + '<hr size=1 style="margin: 3px 0">',
+                'Open: ' + param.data[0] + '<br/>',
+                'Close: ' + param.data[1] + '<br/>',
+                'Lowest: ' + param.data[2] + '<br/>',
+                'Highest: ' + param.data[3] + '<br/>'
+              ].join('');
+            }
+          }
+        },
+        {
+          name: 'MA5',
+          type: 'line',
+          // data: calculateMA(5, data),
+          data: [],
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+        {
+          name: 'MA10',
+          type: 'line',
+          // data: calculateMA(10, data),
+          data:[],
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+        {
+          name: 'MA20',
+          type: 'line',
+          // data: calculateMA(20, data),
+          data: [],
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+        {
+          name: 'MA30',
+          type: 'line',
+          // data: calculateMA(30, data),
+          data: [],
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+        {
+          name: 'Volume',
+          type: 'bar',
+          xAxisIndex: 1,
+          yAxisIndex: 1,
+          // data: data.volumes
+          data: []
+        }
+      ]
+    };
+
+  if (option && typeof option === 'object') {
+      myChart.setOption(option);
+  }
+
+function update(dd, kk, vv) {
+  // console.log(kk.length);
+  myChart.setOption({
+          xAxis: [
+            {
+              type: 'category',
+              gridIndex: 0,
+              data: dd,
+            },
+            {
+              type: 'category',
+              gridIndex: 1,
+              data: dd,
+            }
+          ],
+    			series: [
+          {
+          name: 'Dow-Jones index',
+          type: 'candlestick',
+          // data: data.values,
+          data: kk,
+          // itemStyle: {
+          //   color: upColor,
+          //   color0: downColor,
+          //   borderColor: undefined,
+          //   borderColor0: undefined
+          // },
+          tooltip: {
+            formatter: function (param) {
+              param = param[0];
+              return [
+                'Date: ' + param.name + '<hr size=1 style="margin: 3px 0">',
+                'Open: ' + param.data[0] + '<br/>',
+                'Close: ' + param.data[1] + '<br/>',
+                'Lowest: ' + param.data[2] + '<br/>',
+                'Highest: ' + param.data[3] + '<br/>'
+              ].join('');
+            }
+          }
+        },
+        {
+          name: 'MA5',
+          type: 'line',
+          data: calculateMA(5, {"values": kk}),
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+        {
+          name: 'MA10',
+          type: 'line',
+          data: calculateMA(10, {"values": kk}),
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+        {
+          name: 'MA20',
+          type: 'line',
+          data: calculateMA(20, {"values": kk}),
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+        {
+          name: 'MA30',
+          type: 'line',
+          data: calculateMA(30, {"values": kk}),
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+          {
+            name: 'Volume',
+            type: 'bar',
+            xAxisIndex: 1,
+            yAxisIndex: 1,
+            // data: data.volumes
+            data: vv,
+            itemStyle: {
+              color: upColor,
+              color0: downColor,
+              borderColor: undefined,
+              borderColor0: undefined
+            },
+        }]
+  });
+}
+
+
+// stomp start
+
+    var dates = new Array();
+    var klines = new Array();
+    var vols = new Array();
+    var vols2 = new Array();
+    var N_KLINES = 200;
+
+		var ws = new WebSocket('ws://127.0.0.1:12345/ws');
+		var client = Stomp.over(ws);
+		
+		var on_connect = function(x) {
+    		console.log('connected');
+
+			// Kline
+			client.subscribe("/topic/kline", function (data) {
+          // console.log('here...');
+    			var msg = data.body;
+    			// console.log(msg);
+    			var json1 = JSON.parse(msg);
+          // console.log(json1);
+          if (klines.length == N_KLINES) {
+            klines.shift();
+            dates.shift();
+            vols.shift();
+          }
+    			klines.push(json1.kk);
+          dates.push(json1.dd);
+          vols.push(json1.vv);
+          vols2 = [];
+          for (let i = 0; i < klines.length; i++) {
+            vols2.push([i, vols[i], klines[i][0] > klines[i][1] ? 1 : -1]);   // 升降不同颜色 
+          }
+
+          // console.log(dates);
+          // console.log(klines);
+          // console.log(vols2);
+          update(dates, klines, vols2);
+    		});
+
+      // gotext:
+      client.subscribe("/topic/test", function (data) {
+    			var msg = data.body;
+    			// console.log(msg);
+    			// var json2 = JSON.parse(msg);
+    			document.getElementById("gotext").innerText = msg;
+    	});
+
+		};
+		
+	  var on_error =  function() {
+    		console.log('error');
+     };
+		
+	 client.connect('userdw01', 'pq328hu7', on_connect, on_error, '/');
+
+//stomp end. 
+
+    window.addEventListener('resize', myChart.resize);
+  </script>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="zh-CN" style="height: 100%">
+<head>
+    <meta charset="utf-8">
+    <title>Spread</title>
+    <style>
+        /* 新增布局样式 */
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            height: 100vh;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+        .chart-container {
+            height: 400px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            padding: 10px;
+        }
+    </style>
+</head>
+<body style="height: 100%; margin: 0">
+    <!-- 修改容器为网格布局 -->
+    <div class="chart-grid">
+        <div class="chart-container" id="container1"></div>
+        <div class="chart-container" id="container2"></div>
+        <div class="chart-container" id="container3"></div>
+        <div class="chart-container" id="container4"></div>
+    </div>
+    <!-- <div id="container" style="width:90%;height: 90%"></div> -->
+
+	<script type="text/javascript" src="js/echarts-5.3.0.js"></script>
+	<script src="js/stomp.js"></script>
+	<script src="js/jquery-3.6.0.js"></script>
+
+    <script>
+        // 配置四个交易对参数
+        const pairs = [
+            { 
+                id: 'container1',
+                topic: '/topic/priceAB1',
+                color: '#36a3f7',
+                title: 'DOGE - ETH'
+            },
+            {
+                id: 'container2',
+                topic: '/topic/priceAB2',
+                color: '#ff6b6b',
+                title: 'DOGE - XRP'
+            },
+            {
+                id: 'container3',
+                topic: '/topic/priceAB3',
+                color: '#34c759',
+                title: 'DOGE - TRUMP'
+            },
+            {
+                id: 'container4',
+                topic: '/topic/priceAB4',
+                color: '#af52de',
+                title: 'DOGE - SOL'
+            }
+        ];
+
+        // 初始化四个图表
+        const charts = pairs.map(pair => {
+            const chart = echarts.init(document.getElementById(pair.id));
+            const option = {
+                title: {
+                    text: pair.title,
+                    left: 'center'
+                },
+                grid: {
+                    left: '5%',
+                    right: '5%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    show: false,
+                    boundaryGap: false,
+                    data: []
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        position: 'left',
+                        axisLabel: { formatter: v => v.toFixed(3) },
+                        splitLine: { show: true }
+                    },
+                    {
+                        type: 'value',
+                        position: 'right',
+                        axisLabel: { formatter: v => v.toFixed(3) },
+                        splitLine: { show: true },
+                        offset: 0
+                    }
+                ],
+                series: [
+                    {
+                        type: 'line',
+                        smooth: 0.3,
+                        showSymbol: false,
+                        yAxisIndex: 1,
+                        lineStyle: { color: pair.color, width: 1 },
+                        areaStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: pair.color + '60' },
+                                { offset: 1, color: pair.color + '00' }
+                            ])
+                        },
+                        data: [0.01,0.02,-0.01,0.02,0.04,0.05]
+                    },
+                    {
+                        type: 'line',
+                        yAxisIndex: 0,
+                        lineStyle: { width: 0 },
+                        symbol: 'none',
+                        data: []
+                    }
+                ]
+            };
+            chart.setOption(option);
+            return {
+                instance: chart,
+                data: []
+            };
+        });
+
+// stomp start
+	const MAX_POINTS = 450;
+        
+    // 连接 stomp 服务器
+    var ws = new WebSocket('ws://127.0.0.1:15674/ws');
+    var client = Stomp.over(ws);
+
+    client.connect('userdw01', 'pq328hu7', () => {
+            console.log('connected...');
+            
+            pairs.forEach((pair, index) => {
+                client.subscribe(pair.topic, data => {
+                    const price = data.body;
+                    const chartData = charts[index].data;
+                    
+                    if (chartData.length >= MAX_POINTS) {
+                        chartData.shift();
+                    }
+                    chartData.push(price);
+                    
+                    charts[index].instance.setOption({
+                        series: [
+                            { data: chartData },
+                            { data: chartData }
+                        ]
+                    });
+                });
+            });
+        }, error => {
+            console.error('连接错误:', error);
+        });
+
+        // 窗口自适应
+        window.addEventListener('resize', () => {
+            charts.forEach(chart => chart.instance.resize());
+        });
+        
+    </script>
+</body>
+</html>
+

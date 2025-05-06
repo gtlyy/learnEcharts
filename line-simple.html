@@ -1,0 +1,91 @@
+<!--
+	此示例下载自 https://echarts.apache.org/examples/zh/editor.html?c=line-simple
+-->
+<!DOCTYPE html>
+<html lang="en" style="height: 100%">
+<head>
+  <meta charset="utf-8">
+</head>
+<body style="height: 100%; margin: 0">
+  <div id="container" style="height: 100%"></div>
+  
+  <script type="text/javascript" src="js/echarts-5.3.0.js"></script>
+  <script src="js/stomp.js"></script>
+  <script src="js/jquery-3.6.0.js"></script>
+  
+  <script type="text/javascript">
+    var dom = document.getElementById('container');
+    var myChart = echarts.init(dom, null, {
+      renderer: 'canvas',
+      useDirtyRect: false
+    });
+    var app = {};
+    
+    var option;
+
+    option = {
+  xAxis: {
+    type: 'category',
+    data: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+  },
+  yAxis: {
+    type: 'value'
+  },
+  series: [
+    {
+      data: [150, 230, 224, 218, 135, 147, 260],
+      type: 'line'
+    }
+  ]
+};
+
+    if (option && typeof option === 'object') {
+      myChart.setOption(option);
+    }
+
+    var lines_xx = new Array();    // date
+    var lines_yy = new Array();    // c/o
+    NUMS = 200
+
+    var ws = new WebSocket('ws://127.0.0.1:15674/ws');
+		var client = Stomp.over(ws);
+		
+		var on_connect = function(x) {
+    		console.log('connected');
+
+      // get data
+			client.subscribe("/topic/line", function (data) {
+    			var msg = data.body;
+    			// console.log(msg);
+    			var json1 = JSON.parse(msg);
+          if (lines_xx.length == NUMS) {
+            lines_xx.shift()
+            lines_yy.shift()
+          }
+    			lines_xx.push(json1.xx);
+          lines_yy.push(json1.yy);
+          console.log(lines_xx);
+          console.log(lines_yy);
+          myChart.setOption({
+    				xAxis: {
+      				data: lines_xx
+    				},
+    				series: [
+      				{
+        				data: lines_yy
+      				}
+    				]
+  				});
+    		});
+    };
+
+    var on_error =  function() {
+    		console.log('error');
+     };
+
+    client.connect('userdw01', 'pq328hu7', on_connect, on_error, '/');
+
+    window.addEventListener('resize', myChart.resize);
+  </script>
+</body>
+</html>

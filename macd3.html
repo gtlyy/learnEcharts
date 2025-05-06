@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="zh-CN" style="height: 100%">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body style="height: 100%; margin: 0">
+
+<!--	<h3 id="title">Trading</h3>-->
+	<div class="containerInfo">
+			<div class="left-controls">
+				Total:<input type="text" id="totalBox" name="accountBox" value="0" disabled>
+				Usdt:<input type="text" id="accountBox" name="accountBox" value="0" disabled>
+				Coin:<input type="text" id="coinBox" name="coinBox" value="0" disabled>
+				<button id="openButton" disabled>Open</button>
+				<button id="passButton" disabled>Pass</button>
+   			<button id="closeButton" disabled>Close</button>
+   		</div>
+   		<div class="middle-controls">
+   		<input type="text" id="tipsBox" name="coinBox" value="0" disabled>
+			<!--	<label id="tips">tips...</label>-->
+   		</div>
+   		<div class="right-controls">
+        <select id="strategySelect">
+          <option value="strategy1">策略1</option>
+          <option value="strategy2">策略2</option>
+          <option value="strategy3">策略3</option>
+        </select>    
+        <select id="timeSelect">
+          <option value="time1">1D</option>
+          <option value="time2">1H</option>
+          <option value="time3">15m</option>
+        </select>       
+   			usdt0:<input type="text" id="usdt0Box" name="usdt0Box" value="1000">
+				goal:<input type="text" id="goalBox" name="goalBox" value="0.006">
+				fail:<input type="text" id="failBox" name="failBox" value="-0.005">
+				<button id="setupButton">Setup&Start</button>
+			</div>
+	</div>
+	
+	<div id="container"></div>
+
+
+  <script type="text/javascript" src="js/echarts-5.3.0.js"></script>
+  <script src="js/stomp.js"></script>
+  <script src="js/jquery-3.6.0.js"></script>
+
+  <script type="text/javascript">
+    var dom = document.getElementById('container');
+    var myChart = echarts.init(dom, null, {
+      renderer: 'canvas',
+      useDirtyRect: false
+    });
+    var app = {};
+//    var ROOT_PATH = 'https://cdn.jsdelivr.net/gh/apache/echarts-website@asf-site/examples';
+    var option;
+	
+    const upColor = '#00da3c';		// 定义上涨颜色  绿色  （与大A不一样的）
+    const downColor = '#ec0000';  // 定义下跌颜色  红色
+    const buyColor = '#947be9';   // 定义buy颜色  
+    
+// 得出x轴、y轴数据
+// rawDate格式[[date, open, close, low, high, vol],[......]]
+//function splitData(rawData) {
+//  // console.log(rawData);
+//  let categoryData = [];
+//  let values = [];
+//  let volumes = [];
+//  for (let i = 0; i < rawData.length; i++) {
+//    categoryData.push(rawData[i].splice(0, 1)[0]);    // splice(x,n) 从x开始，删除n个数，返回删除元素数组
+//    values.push(rawData[i]);                          // 已经删除了n个元素
+//    volumes.push([i, rawData[i][4], rawData[i][0] > rawData[i][1] ? 1 : -1]);   // 升降不同颜色 
+//    // console.log(categoryData);
+//  }
+//  return {
+//    categoryData: categoryData,
+//    values: values,
+//    volumes: volumes
+//  };
+//}
+
+// 得出均线数据
+function calculateMA(dayCount, data) {
+  var result = [];
+  for (var i = 0, len = data.values.length; i < len; i++) {
+    if (i < dayCount) {
+      result.push('-');
+      continue;
+    }
+    var sum = 0;
+    for (var j = 0; j < dayCount; j++) {
+      sum += data.values[i - j][1];
+    }
+    result.push(+(sum / dayCount).toFixed(5));  // 保留小数位数
+  }
+  return result;
+}
+
+// 静态数据展示
+option = {
+//		grid: {
+//        left: 0,   // 设置图表区域的左边距
+////        right: 'auto',  // 设置图表区域的右边距
+////        bottom: 0, // 设置图表区域的下边距
+////        containLabel: true  // 自动计算轴标签和标题的空间，以便为 visualMap 腾出空间
+//    	},
+      //  加载动画，不需要
+      animation: false,
+      // 图例
+      legend: {
+        top: '2%',
+        left: 'center',
+        data: ['MA7', 'MA30']
+      },
+      // 工具提示（鼠标动来动去显示的那个）
+      tooltip: {
+        trigger: 'axis',
+        axisPointer: {
+          type: 'cross'
+        	},
+        borderWidth: 0,
+        // borderColor: '#ccc',
+        borderColor: 'transparent', // 设置边框颜色为透明
+        extraCssText: 'box-shadow: none;', // 移除阴影效果
+        backgroundColor: 'transparent',
+        padding: 10,
+        textStyle: {
+          color: '#5277d3',
+          fontSize: 12,
+        	},
+  
+        // 设置内容：
+        formatter: function (params) {
+          var content = '';
+          var content1 = '';
+          var content2 = '';
+          var content3 = '';
+          var content4 = '';
+          var content5 = '';
+          var content6 = '';
+
+          // 循环遍历每个数据项
+          for (var i = 0; i < params.length; i++) {
+              var param = params[i];
+              var color = param.color;
+
+              // 根据数据项的名称设置不同的位置
+              if (param.seriesName === 'Kline') {
+                // console.log("here kline.")
+                content1 = [
+                '<span style="color: #48494d;">开 '+ '</span>' + param.data[1],
+                '<span style="color: #48494d;">  高 '+ '</span>' + param.data[4],
+                '<span style="color: #48494d;">  低 '+ '</span>' + param.data[3],
+                '<span style="color: #48494d;">  收 '+ '</span>' + param.data[2],
+                ].join('');
+                var dataIndex = param.dataIndex;
+                var currentData = klines[dataIndex][1]; // 假设 data 是你的 K 线数据数组
+                var prevData = klines[dataIndex - 1][1]; // 假设 data 中的数据是按照时间顺序排列的
+                if (prevData) {
+                  var increaseRate = ((currentData - prevData) / prevData * 100).toFixed(2);
+                  content1 = [
+                    '<span style="color: #48494d;">开 '+ '</span>' + '<span style="color: ' + (currentData >= prevData ? upColor : downColor) + ';">' + param.data[1].toString() + '</span>',
+                    '<span style="color: #48494d;">  高 '+ '</span>' + '<span style="color: ' + (currentData >= prevData ? upColor : downColor) + ';">' + param.data[4].toString() + '</span>',
+                    '<span style="color: #48494d;">  低 '+ '</span>' + '<span style="color: '  + (currentData >= prevData ? upColor : downColor) + ';">' + param.data[3].toString() + '</span>',
+                    '<span style="color: #48494d;">  收 '+ '</span>' + '<span style="color: '  + (currentData >= prevData ? upColor : downColor) + ';">' + param.data[2].toString() + '</span>',
+                  ].join('');
+                  content1 += '  ' + '<span style="color: ' + (currentData >= prevData ? upColor : downColor) + ';">' + increaseRate.toString() + '%</span>';
+                } else {
+                   content1 = [
+                   '<span style="color: #48494d;">开 '+ '</span>' + '<span style="color: ' + (currentData >= prevData ? upColor : downColor) + ';">' + param.data[1].toString() + '</span>',
+                    '<span style="color: #48494d;">  高 '+ '</span>' + '<span style="color: ' + (currentData >= prevData ? upColor : downColor) + ';">' + param.data[4].toString() + '</span>',
+                    '<span style="color: #48494d;">  低 '+ '</span>' + '<span style="color: '  + (currentData >= prevData ? upColor : downColor) + ';">' + param.data[3].toString() + '</span>',
+                    '<span style="color: #48494d;">  收 '+ '</span>' + '<span style="color: '  + (currentData >= prevData ? upColor : downColor) + ';">' + param.data[2].toString() + '</span>',
+                    ].join('');
+                }
+              } else if (param.seriesName === 'Volume') {
+                // console.log("here vol.")
+                content3 = [
+                  '<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>',
+                  '<span style="color: #48494d;">  Vol '+ '</span>' + '<span style="color: '  + color + ';">' + param.data[1].toString() + '</span>',
+                ].join('');
+              } else if (param.seriesName === 'Macd') {
+                content6 = [
+                '<span style="color: #48494d;">  Macd '+ '</span>' + '<span style="color: '  + color + ';">' + param.data.toString() + '</span>',
+                ].join('');
+              } else if (param.seriesName === 'Dif') {
+                content4 = [
+                '<br><br><br><br><br><br><br>',
+                '<span style="color: #48494d;">  Dif '+ '</span>' + '<span style="color: '  + color + ';">' + param.data.toString() + '</span>',
+                ].join('');
+              } else if (param.seriesName === 'Dea') {
+                content5 = [
+                '<span style="color: #48494d;">  Dea '+ '</span>' + '<span style="color: '  + color + ';">' + param.data.toString() + '</span>',
+                ].join('');
+              } else if (param.seriesName === 'MA7') {
+                content2 += [
+                '<span style="color: #48494d;padding-left: 20px;">  MA7 '+ '</span>' + '<span style="color: '  + color + ';">' + param.data.toString() + '</span>',
+                ].join('');
+              } else if (param.seriesName === 'MA30') {
+                content2 += [
+                '<span style="color: #48494d;padding-left: 5px;">  MA30 '+ '</span>' + '<span style="color: '  + color + ';">' + param.data.toString() + '</span>',
+                ].join('');                                                           
+              }          
+          }
+          // console.log(content);
+          content = content1 + content2 + content3 + content4 + content5 + content6
+          return content;
+       },
+
+        // 设置位置：
+        position: function (pos, params, el, elRect, size) {
+          var position = ['10%', '2.5%'];
+          for (var i = 0; i < params.length; i++) {
+            var param = params[i];        
+            // 根据数据项的名称设置不同的位置
+            if (param.seriesName === 'Kline') {
+                // console.log("test 1.")
+                position = ['10%', '3.5%'];
+                break;
+            }
+          }
+            return position;
+        },
+        // extraCssText: 'opacity: 0.5;' // 设置透明度
+      },
+      // 这是坐标轴指示器（axisPointer）的全局公用设置
+      axisPointer: {
+        link: [
+          {
+            xAxisIndex: 'all'
+          }
+        ],
+        label: {
+          backgroundColor: '#777'
+        }
+      },
+      // 工具栏，不需要
+      // toolbox: {
+      //   feature: {
+      //     dataZoom: {
+      //       yAxisIndex: false
+      //     },
+      //     brush: {
+      //       type: ['lineX', 'clear']
+      //     }
+      //   }
+      // },
+      // 区域选择组件，不需要
+      // brush: {
+      //   xAxisIndex: 'all',
+      //   brushLink: 'all',
+      //   outOfBrush: {
+      //     colorAlpha: 0.1
+      //   }
+      // },
+      // 视觉映射组件
+      visualMap: [
+        {
+          seriesIndex: 3,     // vol
+          type: 'piecewise',
+          dimension: 2,
+          pieces: [
+            { value: -1, color: upColor},
+            { value: 1, color: downColor},
+            { value: 3, color: buyColor},
+          ],
+          show: false
+        },
+        {
+          seriesIndex: 4,     // macd
+          type: 'piecewise',
+          pieces: [
+            {min: 0, color: upColor},
+            {max: 0, color: downColor},
+          ],
+          show: false
+        },
+      ],
+      grid: [
+        {
+          left: '10%',
+          right: '8%',
+          height: '50%'
+        },
+        {
+          left: '10%',
+          right: '8%',
+          top: '60%',
+          height: '10%'
+        },
+        {
+          left: '10%',
+          right: '8%',
+          top: '77%',
+          bottom: '10',
+          height: '16%'
+        }
+      ],
+      xAxis: [
+        {
+          type: 'category',
+          gridIndex: 0,
+          // data: data.categoryData,
+          data: [],
+          boundaryGap: false,
+          axisLine: { onZero: false },
+          splitLine: { show: false },
+          min: 'dataMin',
+          max: 'dataMax',
+          axisPointer: {
+            z: 100
+          }
+        },
+        {
+          type: 'category',
+          gridIndex: 1,
+          // data: data.categoryData,
+          data: [],
+          boundaryGap: false,
+          axisLine: { onZero: false },
+          axisTick: { show: true },
+          splitLine: { show: false },
+          axisLabel: { show: true },
+          min: 'dataMin',
+          max: 'dataMax'
+        },
+        {
+          type: 'category',
+          gridIndex: 2,
+          // data: data.categoryData,
+          data: [],
+          boundaryGap: false,
+          axisLine: { onZero: false },
+          axisTick: { show: true },
+          splitLine: { show: false },
+          axisLabel: { show: true },
+          min: 'dataMin',
+          max: 'dataMax'
+        },
+      ],
+      yAxis: [
+        {
+          scale: true,
+          gridIndex: 0,
+          splitArea: {
+            show: true
+          }
+        },
+        {
+          scale: true,
+          gridIndex: 1,
+          // splitNumber: 2,
+          // axisLabel: { show: false },
+          // axisLine: { show: false },
+          // axisTick: { show: false },
+          // splitLine: { show: false }
+        },
+        {
+          scale: true,
+          gridIndex: 2,
+          // splitNumber: 2,
+          // axisLabel: { show: false },
+          // axisLine: { show: false },
+          // axisTick: { show: false },
+          // splitLine: { show: false }
+        }
+        
+      ],
+      dataZoom: [
+        {
+          type: 'inside',
+          xAxisIndex: [0, 1, 2],
+          start: 60,
+          end: 100
+        },
+        {
+          type: 'slider',
+          show: true,
+          xAxisIndex: [0, 1, 2],
+          // top: '85%',
+          bottom: '1%',
+          start: 60,
+          end: 100
+        }
+      ],
+      series: [
+        {
+          name: 'Kline',
+          type: 'candlestick',
+          data: [],
+          itemStyle: {
+            color: upColor,
+            color0: downColor,
+            borderColor: undefined,
+            borderColor0: undefined
+          },          
+				zlevel: 1,
+    			z: 1,
+        },
+        {
+          name: 'MA7',
+          type: 'line',
+          data: [],
+          zlevel: 2,
+    			z: 2,
+          smooth: true,
+            // 改观线条
+            "connectNulls": false,
+            "xAxisIndex": 0,
+            "yAxisIndex": 0,
+            "symbol": "none",
+            "symbolSize": 2,
+            "showSymbol": true,
+            "clip": true,
+            "step": false,
+          lineStyle: {
+            opacity: 0.7		// 透明度
+          }
+        },
+//        {
+//          name: 'MA10',
+//          type: 'line',
+//          data:[],
+//          smooth: true,
+//            // 改观线条
+//            "connectNulls": false,
+//            "xAxisIndex": 0,
+//            "yAxisIndex": 0,
+//            "symbol": "none",
+//            "symbolSize": 2,
+//            "showSymbol": true,
+//            "clip": true,
+//            "step": false,
+//          lineStyle: {
+//            opacity: 0.5
+//          }
+//        },
+//        {
+//          name: 'MA20',
+//          type: 'line',
+//          data: [],
+//          smooth: true,
+//            // 改观线条
+//            "connectNulls": false,
+//            "xAxisIndex": 0,
+//            "yAxisIndex": 0,
+//            "symbol": "none",
+//            "symbolSize": 2,
+//            "showSymbol": true,
+//            "clip": true,
+//            "step": false,          
+//          lineStyle: {
+//            opacity: 0.5
+//          }
+//        },
+        {
+          name: 'MA30',
+          type: 'line',
+          data: [],
+          zlevel: 3,
+    			z: 3,
+          smooth: true,
+            // 改观线条
+            "connectNulls": false,
+            "xAxisIndex": 0,
+            "yAxisIndex": 0,
+            "symbol": "none",
+            "symbolSize": 2,
+            "showSymbol": true,
+            "clip": true,
+            "step": false,          
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+        {
+          name: 'Volume',
+          type: 'bar',
+          xAxisIndex: 1,
+          yAxisIndex: 1,
+          zlevel: 4,
+    			z: 4,
+          data: []
+        },
+        {
+          name: 'Macd',
+          type: 'bar',
+          xAxisIndex: 2,
+          yAxisIndex: 2,
+          zlevel: 5,
+    			z: 5,
+          data: []
+        },
+        {
+          name: 'Dif',
+          type: 'line',
+          xAxisIndex: 2,
+          yAxisIndex: 2,
+          zlevel: 6,
+    			z: 6,
+          data: [],
+          smooth: true,
+            // 改观线条
+            "connectNulls": false,
+            "xAxisIndex": 0,
+            "yAxisIndex": 0,
+            "symbol": "none",
+            "symbolSize": 2,
+            "showSymbol": true,
+            "clip": true,
+            "step": false, 
+        },
+        {
+          name: 'Dea',
+          type: 'line',
+          xAxisIndex: 2,
+          yAxisIndex: 2,
+          zlevel: 7,
+    			z: 7,
+          data: [],
+          smooth: true,
+            // 改观线条
+            "connectNulls": false,
+            "xAxisIndex": 0,
+            "yAxisIndex": 0,
+            "symbol": "none",
+            "symbolSize": 2,
+            "showSymbol": true,
+            "clip": true,
+            "step": false, 
+        }
+      ]
+    };
+
+  if (option && typeof option === 'object') {
+      myChart.setOption(option);
+  }
+
+// 异步，通过rabbitmq+stomp，接收数据并展示
+function update(dd, kk, vv, dif, dea, macd) {
+  xPer = 0;
+  if (kk.length >= 150) {
+      // console.log(kk.length);
+    xPer = 100 - 100*150/kk.length;			// 确保显示150条K线
+  }
+  myChart.setOption({
+          xAxis: [
+            {
+              type: 'category',
+              gridIndex: 0,
+              data: dd,
+            },
+            {
+              type: 'category',
+              gridIndex: 1,
+              data: dd,
+            },
+            {
+              type: 'category',
+              gridIndex: 2,
+              data: dd,
+            }
+          ],
+        dataZoom: [
+          {
+            type: 'inside',
+            xAxisIndex: [0, 1, 2],
+            start: xPer,
+            end: 100
+          },
+          {
+            type: 'slider',
+            // show: true,
+            xAxisIndex: [0, 1, 2],
+            // // top: '85%',
+            // bottom: '1%',
+            start: xPer,
+            end: 100
+          }
+        ],
+    		series: [
+          {
+          name: 'Kline',
+          type: 'candlestick',
+          data: kk,
+        },
+        {
+          name: 'MA7',
+          type: 'line',
+          data: calculateMA(7, {"values": kk}),
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+//        {
+//          name: 'MA10',
+//          type: 'line',
+//          data: calculateMA(10, {"values": kk}),
+//          smooth: true,
+//          lineStyle: {
+//            opacity: 0.5
+//          }
+//        },
+//        {
+//          name: 'MA20',
+//          type: 'line',
+//          data: calculateMA(20, {"values": kk}),
+//          smooth: true,
+//          lineStyle: {
+//            opacity: 0.5
+//          }
+//        },
+        {
+          name: 'MA30',
+          type: 'line',
+          data: calculateMA(30, {"values": kk}),
+          smooth: true,
+          lineStyle: {
+            opacity: 0.5
+          }
+        },
+        {
+            name: 'Volume',
+            type: 'bar',
+            xAxisIndex: 1,
+            yAxisIndex: 1,
+            data: vv,
+            itemStyle: {
+              color: upColor,
+              color0: downColor,
+              borderColor: undefined,
+              borderColor0: undefined
+            },
+        },
+        {
+            name: 'Macd',
+            type: 'bar',
+            xAxisIndex: 2,
+            yAxisIndex: 2,
+            data: macd,
+      },
+      {
+        name: 'Dif',
+        xAxisIndex: 2,
+        yAxisIndex: 2,
+        data: dif,
+      },
+      {
+        name: 'Dea',
+        xAxisIndex: 2,
+        yAxisIndex: 2,
+        data: dea,
+      },
+      ]
+  });
+}
+
+
+// stomp start
+
+    var dates = new Array();
+    var klines = new Array();
+    var vols = new Array();
+    var vols2 = new Array();
+    var macd = new Array();
+    var dif = new Array();
+    var dea = new Array();
+    var N_KLINES = 1000;
+
+		var ws = new WebSocket('ws://127.0.0.1:15674/ws');
+		var client = Stomp.over(ws);
+		
+  		// 点击open, pass, close按钮，发送相应消息
+  		document.getElementById("openButton").addEventListener("click", function() {
+  				 console.log('Send msg: openDone');
+            sendMessage('/topic/tradeReply', "openDone");
+            document.getElementById("openButton").disabled = true;
+            document.getElementById("openButton").classList.remove("enabled-style");
+            document.getElementById("passButton").disabled = true;
+            document.getElementById("passButton").classList.remove("enabled-style");
+            document.getElementById("tips").textContent="tips......"
+		});
+		document.getElementById("passButton").addEventListener("click", function() {
+  				 console.log('Send msg: passDone');
+            sendMessage('/topic/tradeReply', "passDone");
+            document.getElementById("passButton").disabled = true;
+            document.getElementById("passButton").classList.remove("enabled-style");
+            document.getElementById("openButton").disabled = true;
+            document.getElementById("openButton").classList.remove("enabled-style");
+            document.getElementById("closeButton").disabled = true;
+            document.getElementById("closeButton").classList.remove("enabled-style");
+            document.getElementById("tips").textContent="tips......"
+		});
+  		document.getElementById("closeButton").addEventListener("click", function() {
+            sendMessage('/topic/tradeReply', "closeDone");
+            document.getElementById("closeButton").disabled = true;
+            document.getElementById("closeButton").classList.remove("enabled-style");
+            document.getElementById("passButton").disabled = true;
+            document.getElementById("passButton").classList.remove("enabled-style");
+            document.getElementById("tips").textContent="tips......"
+		});  
+    
+    // 策略下拉选框
+    var strategySelect = document.getElementById("strategySelect");
+    strategySelect.addEventListener("change", function() {
+      var selectedStrategy = strategySelect.value;  
+      // 在此处添加处理策略选择的逻辑
+      // 根据选择的策略执行相应的操作
+      console.log("Selected Strategy: " + selectedStrategy);
+    });
+		
+		// Setup&Start按钮
+		document.getElementById("setupButton").addEventListener("click", function() {
+				var usdt0Value = document.getElementById("usdt0Box").value;
+    			var goalValue = document.getElementById("goalBox").value;
+    			var failValue = document.getElementById("failBox").value;
+
+    			var data = {
+        		usdt0: usdt0Value,
+        		goal: goalValue,
+        		fail: failValue
+    			};
+
+    			var jsonData = JSON.stringify(data);
+           sendMessage('/topic/setupstart', jsonData);
+  				// 刷新页面         
+  				// location.reload(); 
+				// 重置 echarts				
+				myChart.setOption(option);
+				// 清空变量
+    			dates = [];
+    			klines = [];
+    			vols = [];
+    			vols2 = [];
+    			macd = [];
+    			dif = [];
+    			dea = [];
+           document.getElementById("setupButton").disabled = true;
+		});    
+		
+		// 发送信息
+		function sendMessage(topic, msg) {
+    		 client.send(topic, {"content-type":"text/plain"}, msg);
+  		}		
+		
+		var on_connect = function(x) {
+    		console.log('connected');
+
+			// Kline
+			client.subscribe("/topic/kline", function (data) {
+          // console.log('here...');
+    			var msg = data.body;
+    			// console.log(msg);
+    			var json1 = JSON.parse(msg);
+          // console.log(json1);
+          if (klines.length == N_KLINES) {
+            klines.shift();
+            dates.shift();
+            vols.shift();
+            macd.shift();
+            dif.shift();
+            dea.shift();
+          }
+    		  klines.push(json1.kk);
+          dates.push(json1.dd);
+          vols.push(json1.vv);
+          macd.push(json1.macd);
+          dif.push(json1.dif);
+          dea.push(json1.dea);
+          vols2 = [];
+          for (let i = 0; i < klines.length; i++) {
+            vols2.push([i, vols[i], klines[i][0] > klines[i][1] ? 1 : -1]);   // 升降不同颜色 
+            if (i > 3) {  // 设置买入信号点的成交量的颜色
+            		if (macd[i]>macd[i-1] &&	macd[i-1]>macd[i-2] && macd[i-2]>macd[i-3] && macd[i-3]<macd[i-4]) {
+						  vols2[i][2] = 3            		
+            		}
+            }
+          }
+          update(dates, klines, vols2, dif, dea, macd);
+    		});
+
+    		// 订阅account频道
+    		client.subscribe("/topic/account", function (data) {
+    			var msg = data.body;
+    			// console.log(msg);
+    			var json1 = JSON.parse(msg);
+    			//$("#message").append("收到数据：" + msg);
+    			//console.log(msg)
+    			document.getElementById("totalBox").value=json1.total
+    			document.getElementById("accountBox").value=json1.usdt
+    			document.getElementById("coinBox").value=json1.coin
+    		});
+    		
+    		// 订阅开平仓的提示信息
+			client.subscribe("/topic/tips", function (data) {
+//				document.getElementById("tips").textContent=data.body
+				document.getElementById("tipsBox").value=data.body
+			});
+			
+			// 订阅over
+			client.subscribe("/topic/over", function (data) {
+				document.getElementById("setupButton").disabled = false;
+			});
+    		
+			// 订阅trade频道
+    		client.subscribe("/topic/trade", function (data) {
+    			var message = data.body;
+          	if (message === "enable_open_button") {
+                document.getElementById("openButton").disabled = false;
+                document.getElementById("openButton").classList.add("enabled-style");
+                document.getElementById("passButton").disabled = false;
+                document.getElementById("passButton").classList.add("enabled-style");
+      		} else if (message === "enable_close_button") {
+                document.getElementById("closeButton").disabled = false;
+                document.getElementById("closeButton").classList.add("enabled-style");
+                document.getElementById("passButton").disabled = false;
+                document.getElementById("passButton").classList.add("enabled-style");
+            }
+			});
+
+		};
+		
+	  var on_error =  function() {
+    		console.log('error');
+     };
+		
+	 client.connect('userdw01', 'pq328hu7', on_connect, on_error, '/');
+
+//stomp end. 
+
+    window.addEventListener('resize', myChart.resize);
+  </script>
+</body>
+</html>

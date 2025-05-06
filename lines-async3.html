@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN" style="height: 100%">
+<head>
+    <meta charset="utf-8">
+    <title>实时价差监控</title>
+</head>
+<body style="height: 100%; margin: 0">
+      	<div id="container" style="width:90%;height: 90%"></div>
+	<script type="text/javascript" src="js/echarts-5.3.0.js"></script>
+	<script src="js/stomp.js"></script>
+	<script src="js/jquery-3.6.0.js"></script>
+
+    <script>
+        var dom = document.getElementById('container');
+    	var myChart = echarts.init(dom, null, {
+      		renderer: 'canvas',
+      		useDirtyRect: false
+    	});
+    	
+        let option = {
+		grid: {
+		    left: '5%',   // 增加左侧留白
+		    right: '5%',  // 增加右侧留白
+		    containLabel: true
+		},
+            xAxis: {
+                type: 'category',
+                show: false, // 完全隐藏X轴
+                boundaryGap: false,
+                data: [] // 无需填充数据
+            },
+            yAxis: [ // 改为数组形式配置双Y轴
+            {   // 左侧Y轴
+                type: 'value',
+                position: 'left',
+                axisLabel: {
+                    formatter: value => value.toFixed(3)
+                },
+                splitLine: { show: true } 
+            },
+            {   // 右侧Y轴
+                type: 'value',
+                position: 'right',
+                axisLabel: {
+                    formatter: value => value.toFixed(3)
+                },
+                splitLine: { show: true }, 
+                offset: 0 // 与左侧轴对称
+            }
+        	],
+            series: [{
+                type: 'line',
+                smooth: 0.3, // 调整平滑系数（0-1）
+                showSymbol: false,
+                yAxisIndex: 1,
+                lineStyle: {
+                    color: '#36a3f7',
+                    width: 1
+                },
+                areaStyle: {
+                    color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                        { offset: 0, color: 'rgba(54,163,247,0.6)' },
+                        { offset: 1, color: 'rgba(54,163,247,0.02)' }
+                    ])
+                },
+                data: [0.01,0.02,-0.02,0.01,0.04,0.06,0.03,0.02,-0.03]
+            	},
+		{
+                type: 'line',
+                yAxisIndex: 0,
+                lineStyle: {
+                    width: 0
+                },
+                symbol: 'none',
+                data: []
+            	},
+            ]
+        };
+        
+	if (option && typeof option === 'object') {
+      		myChart.setOption(option);
+    	}
+
+// stomp start
+	const MAX_POINTS = 1000;
+	var priceABs = new Array();
+        
+        // 连接 stomp 服务器
+        var ws = new WebSocket('ws://127.0.0.1:15674/ws');
+	var client = Stomp.over(ws);
+		
+	// 回调函数 on_connect()	
+	var on_connect = function(x) {
+    		console.log('connected...');
+
+		// 订阅：/topic/priceAB
+		client.subscribe("/topic/priceAB", function (data) {
+			var price = data.body;
+    			console.log(price);
+			if (priceABs.length == MAX_POINTS) {
+			  priceABs.shift();
+			}
+			priceABs.push(price);
+			console.log(priceABs);
+			// 增量更新提高性能
+		    	myChart.setOption({
+		        	series: [{ data: priceABs }, {data: priceABs}]
+		    	});
+		});
+	};
+		
+	// 回调函数  on_error()		
+	var on_error =  function() {
+    		console.log('error');
+     	};
+		
+	client.connect('userdw01', 'pq328hu7', on_connect, on_error, '/');		
+//stomp end.  
+
+        window.addEventListener('resize', myChart.resize);   
+        
+    </script>
+</body>
+</html>
+

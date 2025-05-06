@@ -1,0 +1,92 @@
+<html>
+	<head>
+		<title>WebSocket</title>
+			<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+	</head>	
+	
+	<body>
+		<div id="main">
+			<div id="message"></div>
+		</div>
+	
+	<input type="text" id="uriBox" name="uriBox" value="/queue/cmd">
+	<button id="subscribeButton">subscribe</button>
+	<br>
+	<label id="receiveLabel">receive:...</label>	
+	
+	<br><br>
+	<input type="text" id="uri2Box" name="uri2Box" value="/queue/key1">
+	<br>
+	<form><input id="messageInput" autocomplete="off" placeholder="Type here...(Enter to send.)"></input></form>
+	<br>
+
+	例子：<br>
+	/topic/key1 <br>
+	/queue/q1 <br>
+	/exchange/amq.topic <br>
+	/exchange/amq.topic/key1 <br>
+	/exchange/myex-direct (自定义的) <br>
+	/exchange/myex-direct/q1
+
+	</body>
+	
+	<script src="js/stomp.js"></script>
+	<script src="js/jquery-3.6.0.js"></script>
+	
+
+</script>	
+	
+	<script type="text/javascript">
+		var ws = new WebSocket('ws://127.0.0.1:15674/ws');
+		var client = Stomp.over(ws);
+		
+		// 发送 ============================================================= 发送  START
+		$(document).ready(function() {
+			// 监听输入框，并实现输入框的发送功能
+			const inputElement = document.getElementById("messageInput");
+			inputElement.addEventListener("keydown", function (event) {
+				if (event.key === "Enter") {
+					event.preventDefault(); // 阻止表单提交
+				// 发送消息
+				sendMessage($("#uri2Box").val(), $("#messageInput").val());
+				inputElement.value = ""; // 清空输入框
+				}
+			});
+		});
+
+		// 发送信息
+		function sendMessage(uri, msg) {
+    		 client.send(uri, {"content-type":"text/plain"}, msg);
+  		}
+		// 发送 ============================================================= 发送  END
+
+
+		// 接收 ============================================================= 接收  START
+		$(document).ready(function() {
+			// 接收端，添加点击事件
+			$("#subscribeButton").on("click", function() {
+				// 使用URI订阅
+				client.subscribe($("#uriBox").val(), function (message) {
+					var msg = message.body;
+					console.log(msg);
+					$("#receiveLabel").text(msg);
+				});
+			});
+		});
+		// 接收 ============================================================= 接收  END
+		
+		// 连接函数
+		var on_connect = function(x) {
+    		console.log('connected');
+		}
+	
+		// 错误处理函数
+		var on_error =  function() {
+    		console.log('error');
+		};
+		
+		// connect to rabbitmq server.
+		client.connect('userdw01', 'pq328hu7', on_connect, on_error, '/');
+	</script>
+	
+</html>
