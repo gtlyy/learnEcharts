@@ -1,10 +1,7 @@
 # Echarts notes
 配合 `github.com/gtlyy/myrabbitmq` 使用。
 
-## 1 RabbitMQ + WebStomp:
-见 `Install_RabbitMQ_Stomp.md`
-
-## 2 Echarts examples:
+## Echarts examples:
 - hello.html			    柱状图
 - hello-async.html		    异步柱状图，用计时器
 <br><br>
