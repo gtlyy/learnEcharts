@@ -25,3 +25,6 @@
 - macd3.html			    与gf TestGame3,实现更多功能：设置usdt0, goal, fail, 可继续新一轮；tooltip更好了！【待整理】
 - macd4.html      	        更多功能：【待整理】
 - stomp4.html 		        与tradegame一起，探索连接、并发的事宜。。。【待整理】
+
+## Licence 
+MIT License - see LICENSE for more details
